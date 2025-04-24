@@ -103,7 +103,7 @@ st.title("Analyse amplitude sonore & flux optique synchronisé")
 video_url = st.text_input("URL YouTube")
 k_value   = st.slider("k (intervalle [μ ± kσ])",1.0,5.0,2.0,0.1)
 
-if st.button("Lancer l’analyse multimodale"):
+if st.button("Lancer l’analyse"):
     if not video_url:
         st.error("Veuillez renseigner une URL YouTube.")
         st.stop()
@@ -133,7 +133,7 @@ if st.button("Lancer l’analyse multimodale"):
     lb,ub = mu-k_value*sigma, mu+k_value*sigma
     idx = np.where((env<lb)|(env>ub))[0]
     t_out,env_out = t_int[idx],env[idx]
-    st.info(f"{len(idx)} observations atypidues détectées")
+    st.info(f"{len(idx)} observations atypiques détectées")
 
     # 6) Graphique amplitude enveloppe blanche
     fig=go.Figure()
@@ -143,51 +143,93 @@ if st.button("Lancer l’analyse multimodale"):
     fig.update_layout(xaxis_title='Temps (s)',yaxis_title='Amplitude audio')
     st.plotly_chart(fig,use_container_width=True)
 
-    # 7) Analyse chaque anomalie (t-1, t, t+1)
-    offsets = [-1,0,1]
-    for i,t0 in enumerate(t_out):
-        st.subheader(f"Observation #{i+1} — Anomalie à {t0:.1f}s")
-        t_pic = chercher_pic(data,sr,t0)
-        st.markdown(f"**Pic amplitude :** {t_pic:.2f}s • **Amplitude :** {env_out[i]:.2f}")
+    # 4) Explications et interprétations
+    st.subheader("Interprétation des résultats")
+    st.markdown(
+        "**Qu'est-ce que la magnitude optique ?**"
+        "La **magnitude optique** correspond à la moyenne des normes des vecteurs de déplacement calculés "
+        "entre deux images consécutives par l'algorithme Farneback. Elle quantifie l'intensité du mouvement visuel :"
+    )
+    st.markdown("- **Valeurs élevées** : mouvements rapides ou importants")
+    st.markdown("- **Valeurs faibles** : mouvements lents ou quasi-statiques")
 
-        # a) Images brutes
-        cols=st.columns(3)
-        cap=cv2.VideoCapture(video_path)
-        for j,off in enumerate(offsets):
-            cols[j].image(_get_frame_at_time(cap, t_pic+off),channels='BGR',caption=f't_pic+{off}s')
+    st.markdown("**Calcul de l'observation atypique audio :**")
+    st.markdown("Une observation audio atypique est détectée lorsque l'amplitude moyenne de l'enveloppe audio dépasse le seuil défini par μ ± kσ,")
+    st.markdown("où μ est la moyenne des amplitudes sur la vidéo et σ leur écart-type. Cela permet d'identifier des pics sonores significatifs.")
+
+    st.markdown(
+        "**Flux optique :**"
+        "Le flux optique (Farneback) mesure les déplacements de pixels entre deux images consécutives."
+        "Une heatmap JET traduit ces déplacements en intensité de mouvement, du bleu (faible) au rouge (fort)."
+    )
+    st.markdown(
+        "**Superposition :**"
+        "La superposition de la heatmap sur l'image d'origine met en évidence les zones de mouvement significatif,"
+        "conservant la perception visuelle du contenu tout en signalant le mouvement."
+    )
+    st.markdown(
+        "**Vecteurs de flux :**"
+        "Les flèches tracées représentent les vecteurs de déplacement (dx, dy) de blocs de pixels."
+        "Leur densité et leur orientation illustrent la direction et l'amplitude du mouvement."
+    )
+
+    # 7) Analyse de chaque anomalie (t-1, t, t+1)
+    offsets = [-1, 0, 1]
+    for i, t0 in enumerate(t_out):
+        st.subheader(f"Observation #{i + 1} — anomalie à {t0:.1f}s")
+
+        # a) Pic exact et amplitude audio
+        t_pic = chercher_pic(data, sr, t0)
+        amp = env_out[i]
+        st.markdown(f"**Pic amplitude :** {t_pic:.2f}s  •  **Amplitude audio :** {amp:.2f}")
+
+        # b) Calcul du flux optique et récupération des magnitudes
+        flows = compute_optical_flow_metrics(video_path, [t_pic], dt=1.0)
+        evt = flows[0]
+        mag_prev = evt['mag_prev']
+        mag_next = evt['mag_next']
+        st.markdown(f"**mag_t-1** : {mag_prev:.2f}  •  **mag_t** : {mag_next:.2f}")
+
+        # c) Affichage des images brutes
+        st.markdown("**Images brutes**")
+        cols = st.columns(3)
+        cap = cv2.VideoCapture(video_path)
+        for col, off in zip(cols, offsets):
+            img = _get_frame_at_time(cap, t_pic + off)
+            col.image(img, channels='BGR', caption=f"t_pic+{off}s")
         cap.release()
 
-        # b) Flux optique et visuels t-1→t et t→t+1
-        flows = compute_optical_flow_metrics(video_path,[t_pic],dt=1.0)
-        evt  = flows[0]
-        hm_p = faire_carte_flux(evt['flow_map_prev'])
-        hm_n = faire_carte_flux(evt['flow_map_next'])
-        h1,h2=st.columns(2)
-        h1.image(hm_p,channels='BGR',caption='Flux t-1→t')
-        h2.image(hm_n,channels='BGR',caption='Flux t→t+1')
-        sb1,sb2=st.columns(2)
-        sb1.image(cv2.addWeighted(evt['frame_prev'],0.7,hm_p,0.3,0),channels='BGR',caption='Superp. t-1→t')
-        sb2.image(cv2.addWeighted(evt['frame'],0.7,hm_n,0.3,0),channels='BGR',caption='Superp. t→t+1')
-        mag_p,ang_p=cv2.cartToPolar(evt['flow_map_prev'][...,0],evt['flow_map_prev'][...,1],angleInDegrees=True)
-        hsv_p=np.zeros((*mag_p.shape,3),dtype=np.uint8); hsv_p[...,0]=(ang_p/2).astype(np.uint8); hsv_p[...,1]=cv2.normalize(mag_p,None,0,255,cv2.NORM_MINMAX).astype(np.uint8); hsv_p[...,2]=255
-        bgr_hsv_p=cv2.cvtColor(hsv_p,cv2.COLOR_HSV2BGR)
-        mag_n,ang_n=cv2.cartToPolar(evt['flow_map_next'][...,0],evt['flow_map_next'][...,1],angleInDegrees=True)
-        hsv_n=np.zeros((*mag_n.shape,3),dtype=np.uint8); hsv_n[...,0]=(ang_n/2).astype(np.uint8); hsv_n[...,1]=cv2.normalize(mag_n,None,0,255,cv2.NORM_MINMAX).astype(np.uint8); hsv_n[...,2]=255
-        bgr_hsv_n=cv2.cvtColor(hsv_n,cv2.COLOR_HSV2BGR)
-        v1,v2=st.columns(2)
-        v1.image(bgr_hsv_p,channels='BGR',caption='HSV t-1→t')
-        v2.image(bgr_hsv_n,channels='BGR',caption='HSV t→t+1')
-        q1,q2=st.columns(2)
-        q1.image(superposer_vecteurs(evt['frame_prev'],evt['flow_map_prev']),channels='BGR',caption='Vecteurs t-1→t')
-        q2.image(superposer_vecteurs(evt['frame'],evt['flow_map_next']),channels='BGR',caption='Vecteurs t→t+1')
+        # d) Heatmaps du flux optique
+        st.markdown("**Heatmaps (flux optique)**")
+        h1, h2 = st.columns(2)
+        heat_prev = faire_carte_flux(evt['flow_map_prev'])
+        heat_next = faire_carte_flux(evt['flow_map_next'])
+        h1.image(heat_prev, channels='BGR', caption="Flux t-1→t")
+        h2.image(heat_next, channels='BGR', caption="Flux t→t+1")
 
-        # c) Segments de texte t-1, t, t+1
+        # e) Superposition heatmap + image
+        st.markdown("**Superposition heatmap + image**")
+        s1, s2 = st.columns(2)
+        sup_prev = cv2.addWeighted(evt['frame_prev'], 0.7, heat_prev, 0.3, 0)
+        sup_next = cv2.addWeighted(evt['frame'], 0.7, heat_next, 0.3, 0)
+        s1.image(sup_prev, channels='BGR', caption="Superp. t-1→t")
+        s2.image(sup_next, channels='BGR', caption="Superp. t→t+1")
+
+        # f) Vecteurs de flux
+        st.markdown("**Vecteurs de flux**")
+        v1, v2 = st.columns(2)
+        vec_prev = superposer_vecteurs(evt['frame_prev'], evt['flow_map_prev'])
+        vec_next = superposer_vecteurs(evt['frame'], evt['flow_map_next'])
+        v1.image(vec_prev, channels='BGR', caption="Vecteurs t-1→t")
+        v2.image(vec_next, channels='BGR', caption="Vecteurs t→t+1")
+
+        # g) Segments de texte autour du pic
         st.subheader("Segments transcrits autour du pic audio")
         for off in offsets:
             tp = t_pic + off
             seg = next((s for s in segments if s['start'] <= tp <= s['end']), None)
-            texte = seg['text'].strip() if seg else '_aucun segment_'
+            texte = seg['text'].strip() if seg else "_aucun segment_"
             st.markdown(f"**t+{off}s** : {texte}")
 
 
-st.success("Analyse terminée !
+st.success("Analyse terminée !")
