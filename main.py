@@ -1,6 +1,9 @@
-# python -m streamlit run main.py
-
-# pip install opencv-python
+############
+# Analyse de l'amplitude sonore and opticalflow
+# Stéphane Meurisse
+# www.codeandcortex.fr
+# Date : 24-04-2024
+############
 
 import streamlit as st
 import numpy as np
