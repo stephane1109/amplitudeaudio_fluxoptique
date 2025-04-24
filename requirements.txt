@@ -3,3 +3,5 @@ numpy
 soundfile
 plotly
 yt_dlp
+pandas
+openai-whisper
