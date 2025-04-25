@@ -96,17 +96,18 @@ def transcrire_audio_whisper(wav_path: str) -> list[dict]:
     Transcrit un fichier WAV avec Whisper (modèle 'small', FR),
     en forçant l'utilisation du binaire ffmpeg embarqué par imageio-ffmpeg.
     """
-    # Assurer que Whisper trouve ffmpeg
-    import os, imageio_ffmpeg
+    import os
+    import imageio_ffmpeg
+    # Définir le binaire ffmpeg pour Whisper
     ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe()
     os.environ["FFMPEG_BINARY"] = ffmpeg_bin
     os.environ["PATH"] = os.path.dirname(ffmpeg_bin) + os.pathsep + os.environ.get("PATH", "")
 
-    # Charger et transcrire via Whisper à partir du fichier
+    # Chargement du modèle Whisper et transcription
     import whisper
     model = whisper.load_model("small")
     result = model.transcribe(wav_path, language="fr")
-    return result.get('segments', []) result.get('segments', [])
+    return result.get("segments", []) result.get('segments', []) result.get('segments', [])
 
 
 def faire_carte_flux(flow_map: np.ndarray) -> np.ndarray:
