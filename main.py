@@ -1,10 +1,3 @@
-############
-# Analyse de l'amplitude sonore and opticalflow
-# Stéphane Meurisse
-# www.codeandcortex.fr
-# Date : 24-04-2024
-############
-
 import streamlit as st
 import numpy as np
 import soundfile as sf
@@ -12,12 +5,8 @@ import plotly.graph_objects as go
 import subprocess
 import os
 import cv2
-import whisper
 from yt_dlp import YoutubeDL
 from opticalflow import compute_optical_flow_metrics, _get_frame_at_time
-import imageio_ffmpeg
-import whisper
-from scipy.signal import resample
 
 # ----------------------------------------------------------------------------
 # Fonctions utilitaires
@@ -31,39 +20,20 @@ def convertir_en_min_sec(seconds: float) -> str:
 
 
 def telecharger_video_et_extraire_audio(video_url: str, rep="downloads"):
-    """
-    Télécharge la vidéo YouTube et en extrait le WAV (16 kHz mono)
-    en forçant yt_dlp et ffmpeg à utiliser le binaire embarqué par imageio-ffmpeg.
-    """
+    """Télécharge vidéo YouTube et extrait WAV mono 16 kHz."""
     os.makedirs(rep, exist_ok=True)
-
-    # 1) Chemin vers le binaire ffmpeg fourni par imageio-ffmpeg
-    ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe()
-
-    # 2) Options pour yt_dlp : on pointe ffmpeg vers notre binaire Python
-    opts = {
-        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4",
-        "outtmpl": os.path.join(rep, "%(id)s.%(ext)s"),
-        "quiet": True,
-        "ffmpeg_location": ffmpeg_bin,
-    }
+    opts = {"format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4",
+            "outtmpl": os.path.join(rep, "%(id)s.%(ext)s"),
+            "quiet": True}
     with YoutubeDL(opts) as ydl:
         info = ydl.extract_info(video_url, download=True)
-
-    vid_id     = info["id"]
+    vid_id = info["id"]
     video_path = os.path.join(rep, f"{vid_id}.mp4")
     wav_path   = os.path.join(rep, f"{vid_id}.wav")
-
-    # 3) Extraction audio avec le même binaire
-    cmd = [
-        ffmpeg_bin, "-y", "-i", video_path,
-        "-vn", "-ac", "1", "-ar", "16000",
-        "-c:a", "pcm_s16le", wav_path
-    ]
-    subprocess.run(cmd, stdout=subprocess.DEVNULL,
-                          stderr=subprocess.DEVNULL,
-                          check=True)
-
+    cmd = ["ffmpeg", "-y", "-i", video_path,
+           "-vn", "-ac", "1", "-ar", "16000",
+           "-c:a", "pcm_s16le", wav_path]
+    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
     return video_path, wav_path
 
 
@@ -93,42 +63,15 @@ def chercher_pic(data: np.ndarray, sr: int, t_center: float) -> float:
     return (start+rel)/sr
 
 
-def transcrire_audio_whisper(wav_path: str) -> list[dict]:
-    """
-    Transcrit un WAV en FR via Whisper :
-    - on lit le fichier avec soundfile (mono),
-    - on resample à 16 kHz si besoin,
-    - on force le dtype en float32 pour éviter le mismatch float/double,
-    - on passe l'array directement à model.transcribe.
-    """
-    # 1) Charger le WAV
-    try:
-        data, sr = sf.read(wav_path)
-        if data.ndim > 1:
-            data = data.mean(axis=1)
-        if sr != 16000:
-            num = int(len(data) * 16000 / sr)
-            data = resample(data, num)
-            sr = 16000
-    except Exception as e:
-        st.warning(f"⚠️ Erreur lecture audio : {e}")
-        return []
-
-    # 2) Casting en float32  
-    data = data.astype(np.float32)
-
-    # 3) Transcrire via Whisper à partir de l'array
-    try:
-        model  = whisper.load_model("small")
-        result = model.transcribe(
-            data,          # np.ndarray mono 16 kHz, dtype=float32
-            language="fr",
-            fp16=False
-        )
-        return result.get("segments", [])
-    except Exception as e:
-        st.warning(f"⚠️ La transcription a échoué : {e}")
-        return []
+def transcrire_audio_whisper(wav_path: str):
+    """Transcrit audio avec Whisper (small, FR) et renvoie segments."""
+    import whisper
+    model = whisper.load_model("small")
+    result = model.transcribe(
+        wav_path,
+        language="fr"
+    )
+    return result.get('segments', [])  # liste de {'start','end','text'}
 
 
 def faire_carte_flux(flow_map: np.ndarray) -> np.ndarray:
@@ -286,3 +229,9 @@ if st.button("Lancer l’analyse"):
 
 
 st.success("Analyse terminée !")
+
+
+
+
+
+
