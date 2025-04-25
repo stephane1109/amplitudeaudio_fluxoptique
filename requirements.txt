@@ -1,4 +1,5 @@
 streamlit
+ffmpeg
 torch
 opencv-python-headless
 numpy
