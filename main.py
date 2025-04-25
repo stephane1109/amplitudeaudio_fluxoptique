@@ -16,6 +16,8 @@ import whisper
 from yt_dlp import YoutubeDL
 from opticalflow import compute_optical_flow_metrics, _get_frame_at_time
 import imageio_ffmpeg
+import whisper
+from scipy.signal import resample
 
 # ----------------------------------------------------------------------------
 # Fonctions utilitaires
@@ -93,20 +95,29 @@ def chercher_pic(data: np.ndarray, sr: int, t_center: float) -> float:
 
 def transcrire_audio_whisper(wav_path: str) -> list[dict]:
     """
-    Transcrit un fichier WAV avec Whisper (modèle 'small', FR),
-    en forçant l'utilisation du binaire ffmpeg embarqué par imageio-ffmpeg.
+    Transcrit un WAV en FR via Whisper sans appeler ffmpeg :
+    - on lit le fichier avec soundfile (mono 16kHz),
+    - on resample si nécessaire,
+    - on passe l'array directement à model.transcribe.
     """
-    import os
-    import imageio_ffmpeg
-    # Définir le binaire ffmpeg pour Whisper
-    ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe()
-    os.environ["FFMPEG_BINARY"] = ffmpeg_bin
-    os.environ["PATH"] = os.path.dirname(ffmpeg_bin) + os.pathsep + os.environ.get("PATH", "")
+    # 1) Charger le WAV
+    data, sr = sf.read(wav_path)
+    # Si stereo, on fait la moyenne
+    if data.ndim > 1:
+        data = data.mean(axis=1)
+    # 2) Resample à 16 kHz si besoin
+    if sr != 16000:
+        num = int(len(data) * 16000 / sr)
+        data = resample(data, num)
+        sr = 16000
 
-    # Chargement du modèle Whisper et transcription
-    import whisper
+    # 3) Transcrire via Whisper à partir de l'array
     model = whisper.load_model("small")
-    result = model.transcribe(wav_path, language="fr")
+    result = model.transcribe(
+        data,            # np.ndarray mono 16 kHz
+        language="fr",   # force le français
+        fp16=False       # selon votre environnement
+    )
     return result.get("segments", [])
 
 
