@@ -15,6 +15,7 @@ import cv2
 import whisper
 from yt_dlp import YoutubeDL
 from opticalflow import compute_optical_flow_metrics, _get_frame_at_time
+import imageio_ffmpeg
 
 # ----------------------------------------------------------------------------
 # Fonctions utilitaires
@@ -28,20 +29,39 @@ def convertir_en_min_sec(seconds: float) -> str:
 
 
 def telecharger_video_et_extraire_audio(video_url: str, rep="downloads"):
-    """Télécharge vidéo YouTube et extrait WAV mono 16 kHz."""
+    """
+    Télécharge la vidéo YouTube et en extrait le WAV (16 kHz mono)
+    en forçant yt_dlp et ffmpeg à utiliser le binaire embarqué par imageio-ffmpeg.
+    """
     os.makedirs(rep, exist_ok=True)
-    opts = {"format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4",
-            "outtmpl": os.path.join(rep, "%(id)s.%(ext)s"),
-            "quiet": True}
+
+    # 1) Chemin vers le binaire ffmpeg fourni par imageio-ffmpeg
+    ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe()
+
+    # 2) Options pour yt_dlp : on pointe ffmpeg vers notre binaire Python
+    opts = {
+        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4",
+        "outtmpl": os.path.join(rep, "%(id)s.%(ext)s"),
+        "quiet": True,
+        "ffmpeg_location": ffmpeg_bin,
+    }
     with YoutubeDL(opts) as ydl:
         info = ydl.extract_info(video_url, download=True)
-    vid_id = info["id"]
+
+    vid_id     = info["id"]
     video_path = os.path.join(rep, f"{vid_id}.mp4")
     wav_path   = os.path.join(rep, f"{vid_id}.wav")
-    cmd = ["ffmpeg", "-y", "-i", video_path,
-           "-vn", "-ac", "1", "-ar", "16000",
-           "-c:a", "pcm_s16le", wav_path]
-    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+
+    # 3) Extraction audio avec le même binaire
+    cmd = [
+        ffmpeg_bin, "-y", "-i", video_path,
+        "-vn", "-ac", "1", "-ar", "16000",
+        "-c:a", "pcm_s16le", wav_path
+    ]
+    subprocess.run(cmd, stdout=subprocess.DEVNULL,
+                          stderr=subprocess.DEVNULL,
+                          check=True)
+
     return video_path, wav_path
 
 
