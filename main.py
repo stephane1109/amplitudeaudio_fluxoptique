@@ -12,6 +12,7 @@ import plotly.graph_objects as go
 import subprocess
 import os
 import cv2
+import whisper
 from yt_dlp import YoutubeDL
 from opticalflow import compute_optical_flow_metrics, _get_frame_at_time
 
