@@ -92,14 +92,15 @@ def chercher_pic(data: np.ndarray, sr: int, t_center: float) -> float:
 
 
 def transcrire_audio_whisper(wav_path: str):
-    """Transcrit audio avec Whisper (small, FR) et renvoie segments."""
+    """Transcrit audio avec Whisper (modèle 'small', FR)."""
+    # 1) Pointer Whisper vers le ffmpeg embarqué
+    os.environ["FFMPEG_BINARY"] = imageio_ffmpeg.get_ffmpeg_exe()
+
+    # 2) Chargement du modèle et transcription
     import whisper
     model = whisper.load_model("small")
-    result = model.transcribe(
-        wav_path,
-        language="fr"
-    )
-    return result.get('segments', [])  # liste de {'start','end','text'}
+    result = model.transcribe(wav_path, language="fr")
+    return result.get("segments", [])
 
 
 def faire_carte_flux(flow_map: np.ndarray) -> np.ndarray:
