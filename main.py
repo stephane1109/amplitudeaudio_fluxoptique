@@ -107,7 +107,7 @@ def transcrire_audio_whisper(wav_path: str) -> list[dict]:
     import whisper
     model = whisper.load_model("small")
     result = model.transcribe(wav_path, language="fr")
-    return result.get("segments", []) result.get('segments', []) result.get('segments', [])
+    return result.get("segments", []) result.get('segments', [])
 
 
 def faire_carte_flux(flow_map: np.ndarray) -> np.ndarray:
