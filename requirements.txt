@@ -1,5 +1,5 @@
 streamlit
-ffmpeg-python
+imageio-ffmpeg
 torch
 opencv-python-headless
 numpy
