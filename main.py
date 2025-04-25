@@ -91,15 +91,30 @@ def chercher_pic(data: np.ndarray, sr: int, t_center: float) -> float:
     return (start+rel)/sr
 
 
-def transcrire_audio_whisper(wav_path: str):
-    """Transcrit audio avec Whisper (modèle 'small', FR)."""
-    # 1) Pointer Whisper vers le ffmpeg embarqué
-    os.environ["FFMPEG_BINARY"] = imageio_ffmpeg.get_ffmpeg_exe()
+def transcrire_audio_whisper(wav_path: str) -> list[dict]:
+    """
+    Transcrit l'audio en français via Whisper sans faire appel à ffmpeg :
+    - on lit le WAV avec soundfile (déjà à 16 kHz mono),
+    - on passe le ndarray directement à model.transcribe.
+    """
+    # 1) Charger le WAV avec soundfile
+    data, sr = sf.read(wav_path)
+    # Whisper attend du 16 kHz. Si ce n'est pas le cas, il faut resampler.
+    if sr != 16000:
+        import numpy as np
+        from scipy.signal import resample
+        num = int(len(data) * 16000 / sr)
+        data = resample(data, num)
+        sr = 16000
 
-    # 2) Chargement du modèle et transcription
-    import whisper
+    # 2) Charger le modèle et transcrire à partir du tableau
     model = whisper.load_model("small")
-    result = model.transcribe(wav_path, language="fr")
+    # On désactive l'utilisation du binaire externe en passant l'array
+    result = model.transcribe(
+        data,            # tableau numpy (et non chemin de fichier)
+        fp16=False,      # selon votre GPU/CPU
+        language="fr"    # force le français
+    )
     return result.get("segments", [])
 
 
