@@ -93,29 +93,20 @@ def chercher_pic(data: np.ndarray, sr: int, t_center: float) -> float:
 
 def transcrire_audio_whisper(wav_path: str) -> list[dict]:
     """
-    Transcrit l'audio en français via Whisper sans faire appel à ffmpeg :
-    - on lit le WAV avec soundfile (déjà à 16 kHz mono),
-    - on passe le ndarray directement à model.transcribe.
+    Transcrit un fichier WAV avec Whisper (modèle 'small', FR),
+    en forçant l'utilisation du binaire ffmpeg embarqué par imageio-ffmpeg.
     """
-    # 1) Charger le WAV avec soundfile
-    data, sr = sf.read(wav_path)
-    # Whisper attend du 16 kHz. Si ce n'est pas le cas, il faut resampler.
-    if sr != 16000:
-        import numpy as np
-        from scipy.signal import resample
-        num = int(len(data) * 16000 / sr)
-        data = resample(data, num)
-        sr = 16000
+    # Assurer que Whisper trouve ffmpeg
+    import os, imageio_ffmpeg
+    ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe()
+    os.environ["FFMPEG_BINARY"] = ffmpeg_bin
+    os.environ["PATH"] = os.path.dirname(ffmpeg_bin) + os.pathsep + os.environ.get("PATH", "")
 
-    # 2) Charger le modèle et transcrire à partir du tableau
+    # Charger et transcrire via Whisper à partir du fichier
+    import whisper
     model = whisper.load_model("small")
-    # On désactive l'utilisation du binaire externe en passant l'array
-    result = model.transcribe(
-        data,            # tableau numpy (et non chemin de fichier)
-        fp16=False,      # selon votre GPU/CPU
-        language="fr"    # force le français
-    )
-    return result.get("segments", [])
+    result = model.transcribe(wav_path, language="fr")
+    return result.get('segments', []) result.get('segments', [])
 
 
 def faire_carte_flux(flow_map: np.ndarray) -> np.ndarray:
