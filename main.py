@@ -95,30 +95,38 @@ def chercher_pic(data: np.ndarray, sr: int, t_center: float) -> float:
 
 def transcrire_audio_whisper(wav_path: str) -> list[dict]:
     """
-    Transcrit un WAV en FR via Whisper sans appeler ffmpeg :
-    - on lit le fichier avec soundfile (mono 16kHz),
-    - on resample si nécessaire,
-    - on passe l'array directement à model.transcribe.
+    Transcrit un WAV en français avec Whisper.
+    Si Whisper échoue (sur Streamlit Cloud), on intercepte l'erreur
+    et on renvoie une liste vide pour ne pas casser l'app.
     """
     # 1) Charger le WAV
-    data, sr = sf.read(wav_path)
-    # Si stereo, on fait la moyenne
-    if data.ndim > 1:
-        data = data.mean(axis=1)
-    # 2) Resample à 16 kHz si besoin
-    if sr != 16000:
-        num = int(len(data) * 16000 / sr)
-        data = resample(data, num)
-        sr = 16000
+    try:
+        data, sr = sf.read(wav_path)
+        if data.ndim > 1:
+            data = data.mean(axis=1)
+        if sr != 16000:
+            num = int(len(data) * 16000 / sr)
+            data = resample(data, num)
+    except Exception as e:
+        st.warning(f"Erreur lecture audio : {e}")
+        return []
 
-    # 3) Transcrire via Whisper à partir de l'array
-    model = whisper.load_model("small")
-    result = model.transcribe(
-        data,            # np.ndarray mono 16 kHz
-        language="fr",   # force le français
-        fp16=False       # selon votre environnement
-    )
-    return result.get("segments", [])
+    # 2) Transcrire avec Whisper
+    try:
+        model  = whisper.load_model("small")
+        result = model.transcribe(
+            data,          # np.ndarray mono 16 kHz
+            language="fr",
+            fp16=False
+        )
+        return result.get("segments", [])
+    except Exception as e:
+        st.warning(
+            "La transcription avec Whisper a échoué sur ce serveur.\n"
+            f"Détail de l’erreur : {e}\n\n"
+            "Vous pouvez relancer l’analyse localement ou fournir votre propre transcription."
+        )
+        return []
 
 
 def faire_carte_flux(flow_map: np.ndarray) -> np.ndarray:
