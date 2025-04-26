@@ -1,3 +1,11 @@
+############
+# Analyse de l'amplitude sonore and opticalflow
+# Stéphane Meurisse
+# www.codeandcortex.fr
+# Date : 24-04-2024
+############
+# python -m streamlit run main.py
+
 import streamlit as st
 import numpy as np
 import soundfile as sf
@@ -137,37 +145,41 @@ if st.button("Lancer l’analyse"):
     fig.add_trace(go.Scatter(x=t_int,y=env,mode='lines',name='Enveloppe moyenne'))
     fig.add_trace(go.Scatter(x=t_out,y=env_out,mode='markers',marker=dict(color='red',size=8),name='Anomalies'))
     fig.update_layout(xaxis_title='Temps (s)',yaxis_title='Amplitude audio')
-    st.plotly_chart(fig,use_container_width=True)
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={
+            "displayModeBar": True,
+            "modeBarButtonsToAdd": ["zoomIn2d", "zoomOut2d", "autoScale2d", "toImage"],
+            "modeBarButtonsToRemove": ["select2d", "lasso2d"],
+            "displaylogo": False
+        }
+    )
 
     # 4) Explications et interprétations
     st.subheader("Interprétation des résultats")
-    st.markdown(
-        "**Qu'est-ce que la magnitude optique ?**"
-        "La **magnitude optique** correspond à la moyenne des normes des vecteurs de déplacement calculés "
-        "entre deux images consécutives par l'algorithme Farneback. Elle quantifie l'intensité du mouvement visuel :"
-    )
-    st.markdown("- **Valeurs élevées** : mouvements rapides ou importants")
-    st.markdown("- **Valeurs faibles** : mouvements lents ou quasi-statiques")
+
+    st.markdown("**Qu'est-ce que la magnitude optique ?**")
+    st.markdown("La **magnitude optique** correspond à la moyenne des normes des vecteurs de déplacement calculés ")
+    st.markdown("entre deux images consécutives par l'algorithme Farneback. Elle quantifie l'intensité du mouvement visuel :")
+    st.markdown("- *Valeurs élevées* : mouvements rapides ou importants")
+    st.markdown("- *Valeurs faibles* : mouvements lents ou quasi-statiques")
 
     st.markdown("**Calcul de l'observation atypique audio :**")
-    st.markdown("Une observation audio atypique est détectée lorsque l'amplitude moyenne de l'enveloppe audio dépasse le seuil défini par μ ± kσ,")
-    st.markdown("où μ est la moyenne des amplitudes sur la vidéo et σ leur écart-type. Cela permet d'identifier des pics sonores significatifs.")
+    st.markdown("Une observation audio atypique est détectée lorsque l'amplitude moyenne de l'enveloppe audio dépasse le seuil défini par μ ± kσ,"
+   "où μ est la moyenne des amplitudes sur la vidéo et σ leur écart-type. Cela permet d'identifier des pics sonores significatifs.")
 
-    st.markdown(
-        "**Flux optique :**"
-        "Le flux optique (Farneback) mesure les déplacements de pixels entre deux images consécutives."
-        "Une heatmap JET traduit ces déplacements en intensité de mouvement, du bleu (faible) au rouge (fort)."
-    )
-    st.markdown(
-        "**Superposition :**"
-        "La superposition de la heatmap sur l'image d'origine met en évidence les zones de mouvement significatif,"
-        "conservant la perception visuelle du contenu tout en signalant le mouvement."
-    )
-    st.markdown(
-        "**Vecteurs de flux :**"
-        "Les flèches tracées représentent les vecteurs de déplacement (dx, dy) de blocs de pixels."
-        "Leur densité et leur orientation illustrent la direction et l'amplitude du mouvement."
-    )
+    st.markdown("**Flux optique :**")
+    st.markdown("Le flux optique (Farneback) mesure les déplacements de pixels entre deux images consécutives."
+    "Une heatmap JET traduit ces déplacements en intensité de mouvement, du bleu (faible) au rouge (fort).")
+
+    st.markdown("**Superposition :**")
+    st.markdown("La superposition de la heatmap sur l'image d'origine met en évidence les zones de mouvement significatif,"
+    "conservant la perception visuelle du contenu tout en signalant le mouvement.")
+
+    st.markdown("**Vecteurs de flux :**")
+    st.markdown("Les flèches tracées représentent les vecteurs de déplacement (dx, dy) de blocs de pixels."
+    "Leur densité et leur orientation illustrent la direction et l'amplitude du mouvement.")
 
     # 7) Analyse de chaque anomalie (t-1, t, t+1)
     offsets = [-1, 0, 1]
